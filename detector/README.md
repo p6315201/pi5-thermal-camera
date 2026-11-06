@@ -25,19 +25,30 @@ sudo systemctl restart thermal-viewer
 
 ```bash
 sudo systemctl stop thermal-viewer
-.venv/bin/python app.py --rgb picam --thermal 0 --ncnn --imgsz 416 --thermal-model sar_thermal.pt
+.venv/bin/python app.py --rgb picam --thermal 0 --ncnn --imgsz 416 --thermal-model sar_thermal_n.pt
 ```
 
 ## Моделі
 
 | Камера | Модель | Що знаходить |
 |---|---|---|
-| тепловізор | `sar_thermal` (YOLO11s, донавчена на HIT-UAV + VisDrone) | person, vehicle |
+| тепловізор | `sar_thermal_n` (YOLO11n, **за замовчуванням**, швидка) | person, vehicle |
+| тепловізор | `sar_thermal` (YOLO11s, трохи точніша, у ~2.5 раза повільніша) | person, vehicle |
 | RGB | `yolo11n` (стандартна COCO) | person, vehicle, aircraft |
 
-Готові NCNN-версії для Pi: `sar_thermal_416_ncnn_model` (за замовчуванням) і `sar_thermal_320_ncnn_model` (швидша).
-Для 320 у `config.env` поставте `--imgsz 320`.
+Обидві теплові моделі донавчені на HIT-UAV + VisDrone. Для кожної є готові NCNN-версії для Pi:
+`<модель>_416_ncnn_model` і `<модель>_320_ncnn_model` (швидша). Для 320 у `config.env` поставте `--imgsz 320`.
+Перемкнути на 11s: `--thermal-model sar_thermal.pt`.
 
-Точність на 579 тестових теплових кадрах HIT-UAV (висота 60–130 м), NCNN 416:
-люди знайдено 80% (тривоги справжні 83%), техніка 84% (86%).
-Стандартна yolo11n на тих самих кадрах: 4% і 3%. Деталі в `model_metrics/`.
+Точність на 579 тестових теплових кадрах HIT-UAV (висота 60–130 м), NCNN, поріг 0.25
+(знайдено / тривоги справжні):
+
+| Модель | person | vehicle | час кадру* |
+|---|---|---|---|
+| `sar_thermal_n` 416 | 78% / 80% | 86% / 82% | 28 мс |
+| `sar_thermal` 416 | 80% / 83% | 84% / 86% | 76 мс |
+| `sar_thermal_n` 320 | 65% / 75% | 79% / 80% | 22 мс |
+| `sar_thermal` 320 | 68% / 77% | 78% / 85% | 47 мс |
+| стандартна `yolo11n` | 4% / 3% | — | — |
+
+\* виміряно на Mac (CPU); на Raspberry Pi 5 приблизно у 2–3 рази довше. Деталі в `model_metrics/`.
