@@ -1,0 +1,13 @@
+[Unit]
+Description=IR camera service
+DefaultDependencies=false
+
+[Service]
+Type=simple
+ExecStart=/bin/camera
+Restart=always
+#StandardOutput=syslog
+#StandardError=syslog
+
+[Install]
+WantedBy=local-fs.target

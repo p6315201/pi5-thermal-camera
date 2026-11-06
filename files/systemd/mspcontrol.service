@@ -1,0 +1,14 @@
+[Unit]
+Description=IR camera remote control via MSP
+DefaultDependencies=false
+After=camera.service
+
+[Service]
+Type=simple
+ExecStart=/bin/rc.msp.py
+Restart=always
+#StandardOutput=syslog
+#StandardError=syslog
+
+[Install]
+WantedBy=local-fs.target
