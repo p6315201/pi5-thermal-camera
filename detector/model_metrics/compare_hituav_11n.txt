@@ -1,0 +1,26 @@
+Вибірка: test (579 кадрів), imgsz 640, поріг 0.25, IoU 0.5
+
+модель                      клас       знайдено  тривоги OK    AP50
+sar_thermal_n.pt            person         86%         81%   0.874
+sar_thermal_n.pt            vehicle        88%         82%   0.900
+
+знайдено = recall (частка справжніх об'єктів, які модель знайшла)
+тривоги OK = precision (частка рамок, що справді є об'єктом)
+Вибірка: test (579 кадрів), imgsz 416, поріг 0.25, IoU 0.5
+
+модель                      клас       знайдено  тривоги OK    AP50
+sar_thermal_n_416_ncnn_modelperson         78%         80%   0.827
+sar_thermal_n_416_ncnn_modelvehicle        86%         82%   0.893
+
+знайдено = recall (частка справжніх об'єктів, які модель знайшла)
+тривоги OK = precision (частка рамок, що справді є об'єктом)
+Вибірка: test (579 кадрів), imgsz 320, поріг 0.25, IoU 0.5
+
+модель                      клас       знайдено  тривоги OK    AP50
+sar_thermal_n_320_ncnn_modelperson         65%         75%   0.679
+sar_thermal_n_320_ncnn_modelvehicle        79%         80%   0.837
+sar_thermal_320_ncnn_model  person         68%         77%   0.709
+sar_thermal_320_ncnn_model  vehicle        78%         85%   0.847
+
+знайдено = recall (частка справжніх об'єктів, які модель знайшла)
+тривоги OK = precision (частка рамок, що справді є об'єктом)
