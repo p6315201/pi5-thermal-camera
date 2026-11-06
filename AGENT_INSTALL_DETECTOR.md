@@ -12,8 +12,9 @@
 | `detector/app.py`, `index.html` | програма і веб-сторінка |
 | `detector/setup_pi.sh` | встановлення + автозапуск (systemd `thermal-viewer`) |
 | `detector/config.env.example` | шаблон налаштувань (камери, параметри) → `config.env` |
-| `detector/sar_thermal.pt` | модель для тепловізора (YOLO11s, класи `person`, `vehicle`) |
-| `detector/sar_thermal_416_ncnn_model/`, `_320_ncnn_model/` | вона ж, готова для CPU Pi (NCNN FP16) |
+| `detector/sar_thermal_n.pt` | модель для тепловізора, **за замовчуванням** (YOLO11n, швидка; класи `person`, `vehicle`) |
+| `detector/sar_thermal.pt` | те саме, YOLO11s: трохи точніша, у ~2.5 раза повільніша |
+| `detector/<модель>_416_ncnn_model/`, `_320_ncnn_model/` | готові для CPU Pi версії (NCNN FP16) |
 | `detector/yolo11n.pt` + `yolo11n_*_ncnn_model/` | стандартна COCO-модель для RGB-камери |
 | `detector/model_metrics/` | результати перевірки точності |
 | `detector/SHA256SUMS` | контрольні суми моделей |
@@ -84,7 +85,7 @@ cd ~/pi5-thermal-camera/detector && chmod +x setup_pi.sh && ./setup_pi.sh
 ```
 RGB=picam        # або індекс USB-камери, або порожньо, якщо RGB немає
 THERMAL=0        # індекс тепловізора з кроку 3, або порожньо
-ARGS="--ncnn --imgsz 416 --thermal-model sar_thermal.pt --port 8000"
+ARGS="--ncnn --imgsz 416 --thermal-model sar_thermal_n.pt --port 8000"
 ```
 ```bash
 sudo systemctl restart thermal-viewer
@@ -110,14 +111,16 @@ curl -s http://127.0.0.1:8000/api/state | head -c 800; echo
 sudo systemctl stop thermal-viewer
 ```
 ```bash
-cd ~/pi5-thermal-camera/detector && .venv/bin/python app.py --thermal <файл.mp4> --ncnn --imgsz 416 --thermal-model sar_thermal.pt --port 8000
+cd ~/pi5-thermal-camera/detector && .venv/bin/python app.py --thermal <файл.mp4> --ncnn --imgsz 416 --thermal-model sar_thermal_n.pt --port 8000
 ```
 
 ## 7. Швидкість
 
-Орієнтовно на CPU Pi 5 (одна камера): `sar_thermal` 416 px ≈ 6–9 FPS, 320 px ≈ 10–14 FPS.
+Орієнтовно на CPU Pi 5 (одна камера): `sar_thermal_n` 416 px ≈ 15–20 FPS, 320 px ≈ 20–25 FPS;
+`sar_thermal` (11s) 416 px ≈ 6–9 FPS, 320 px ≈ 10–14 FPS.
 З двома камерами — приблизно вдвічі менше на кожну. Якщо FPS замалий:
-- у `config.env` поставити `--imgsz 320` (готова модель `sar_thermal_320_ncnn_model` вже є);
+- у `config.env` поставити `--imgsz 320` (готові `*_320_ncnn_model` вже є);
+- якщо FPS вистачає з запасом і потрібна трохи вища точність — `--thermal-model sar_thermal.pt` (11s);
 - перевірити охолодження: `vcgencmd measure_temp` і `vcgencmd get_throttled` (має бути `0x0`).
 
 ## 8. Що НЕ робити
@@ -133,15 +136,15 @@ cd ~/pi5-thermal-camera/detector && .venv/bin/python app.py --thermal <файл.
 
 ---
 
-### Довідка: точність моделі `sar_thermal`
+### Довідка: точність теплових моделей
 
 579 тестових теплових кадрів HIT-UAV (висота 60–130 м), NCNN FP16, 416 px, поріг 0.25:
 
-| Клас | Знайдено (recall) | Тривоги справжні (precision) |
+| Модель | person знайдено / справжні | vehicle знайдено / справжні |
 |---|---|---|
-| person | 80% | 83% |
-| vehicle | 84% | 86% |
+| `sar_thermal_n` (11n) | 78% / 80% | 86% / 82% |
+| `sar_thermal` (11s) | 80% / 83% | 84% / 86% |
 
-Стандартна `yolo11n` на тих самих кадрах: 4% і 3%. Модель навчена на відкритих даних HIT-UAV
+Стандартна `yolo11n` на тих самих кадрах: 4% і 3%. Моделі навчені на відкритих даних HIT-UAV
 та VisDrone; на власних кадрах з вашої камери точність може відрізнятися — додайте їх у
 `training/own_data/` і донавчіть (див. `training/README.md`).
