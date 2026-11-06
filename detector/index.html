@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пошук RGB + IR</title>
+<style>
+  :root {
+    --bg: #111416; --panel: #1a1f23; --panel2: #222a30; --line: #2e383f;
+    --text: #e6eaed; --muted: #8b979f; --accent: #ffb43c;
+    --person: #ffd200; --vehicle: #50e650; --aircraft: #3c8cff; --bad: #ff5a5a; --ok: #50e650;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+           border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+  .controls label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  input[type=range] { width: 120px; accent-color: var(--accent); }
+  select, button { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+                   border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.on { background: var(--accent); color: #111; border-color: var(--accent); }
+  main { display: grid; grid-template-columns: 1fr 320px; gap: 12px; padding: 12px 16px; }
+  .views { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+  .views.single { grid-template-columns: 1fr; }
+  .view { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .view .bar { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+               padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .view .bar b { font-weight: 600; }
+  .view .stats { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .view img { display: block; width: 100%; background: #000; aspect-ratio: 4 / 3; object-fit: contain;
+              cursor: zoom-in; }
+  .view.zoom { position: fixed; inset: 10px; z-index: 10; display: flex; flex-direction: column; }
+  .view.zoom img { flex: 1; aspect-ratio: auto; height: 0; cursor: zoom-out; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); }
+  .counts { display: flex; gap: 10px; padding: 6px 10px; font-size: 13px; }
+  .counts span { font-variant-numeric: tabular-nums; }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+          display: flex; flex-direction: column; max-height: calc(100vh - 90px); position: sticky; top: 12px; }
+  aside h2 { font-size: 14px; margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--line);
+             display: flex; justify-content: space-between; }
+  .gallery { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: grid; align-content: start;
+             grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); grid-auto-rows: max-content; gap: 8px; }
+  .card { background: var(--panel2); border-radius: 6px; overflow: hidden; border-left: 3px solid var(--muted); }
+  .card img { width: 100%; height: 130px; object-fit: contain; background: #000; display: block; cursor: pointer; }
+  .card .meta { padding: 4px 6px; font-size: 11.5px; color: var(--muted); }
+  .card .meta b { color: var(--text); font-weight: 600; }
+  .g-person { border-color: var(--person); } .g-vehicle { border-color: var(--vehicle); } .g-aircraft { border-color: var(--aircraft); }
+  .chk-person { accent-color: var(--person); } .chk-vehicle { accent-color: var(--vehicle); } .chk-aircraft { accent-color: var(--aircraft); }
+  .empty { color: var(--muted); padding: 16px; grid-column: 1 / -1; text-align: center; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--panel2);
+           border: 1px solid var(--line); padding: 8px 14px; border-radius: 6px; opacity: 0; transition: opacity .3s; }
+  #toast.show { opacity: 1; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } aside { max-height: 420px; position: static; } }
+  @media (max-width: 760px) { .views { grid-template-columns: 1fr; } header, main { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Пошук: RGB + тепловізор</h1>
+  <div class="controls">
+    <label>Поріг <input id="conf" type="range" min="0.05" max="0.9" step="0.05"> <span id="confv"></span></label>
+    <label>Палітра
+      <select id="palette">
+        <option value="whitehot">White-hot</option>
+        <option value="blackhot">Black-hot</option>
+        <option value="inferno">Inferno</option>
+        <option value="jet">Jet</option>
+      </select>
+    </label>
+    <label><input type="checkbox" class="grp chk-person" data-g="person"> Люди</label>
+    <label><input type="checkbox" class="grp chk-vehicle" data-g="vehicle"> Техніка</label>
+    <label><input type="checkbox" class="grp chk-aircraft" data-g="aircraft"> Повітряні</label>
+    <label><input type="checkbox" id="save"> Зберігати знахідки</label>
+    <button id="pause">Пауза</button>
+    <button id="snap">Знімок</button>
+  </div>
+</header>
+
+<main>
+  <section class="views" id="views">
+    <div class="view" id="v-rgb">
+      <div class="bar"><b><span class="dot"></span>RGB</b><span class="stats"></span></div>
+      <img src="/stream/rgb" alt="RGB">
+      <div class="counts"></div>
+    </div>
+    <div class="view" id="v-thermal">
+      <div class="bar"><b><span class="dot"></span>Тепловізор</b><span class="stats"></span></div>
+      <img src="/stream/thermal" alt="Тепловізор">
+      <div class="counts"></div>
+    </div>
+  </section>
+
+  <aside>
+    <h2>Знахідки <span id="evcount" class="stats">0</span></h2>
+    <div class="gallery" id="gallery"><div class="empty">Поки нічого не знайдено</div></div>
+  </aside>
+</main>
+<div id="toast"></div>
+
+<script>
+const NAMES = { person: "Людина", vehicle: "Техніка", aircraft: "Повітряне" };
+const SRC = { rgb: "RGB", thermal: "IR" };
+let lastEvent = 0, total = 0, settingsLoaded = false;
+
+const $ = s => document.querySelector(s);
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show");
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 2500); }
+
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                               body: JSON.stringify(body || {}) });
+  return r.json();
+}
+const setSettings = b => post("/api/settings", b).then(applySettings);
+
+function applySettings(s) {
+  $("#conf").value = s.conf; $("#confv").textContent = s.conf.toFixed(2);
+  $("#palette").value = s.palette; $("#save").checked = s.save_crops;
+  document.querySelectorAll(".grp").forEach(c => c.checked = s.groups[c.dataset.g]);
+  const p = $("#pause"); p.classList.toggle("on", s.paused); p.textContent = s.paused ? "Продовжити" : "Пауза";
+}
+
+$("#conf").addEventListener("input", e => $("#confv").textContent = (+e.target.value).toFixed(2));
+$("#conf").addEventListener("change", e => setSettings({ conf: +e.target.value }));
+$("#palette").addEventListener("change", e => setSettings({ palette: e.target.value }));
+$("#save").addEventListener("change", e => setSettings({ save_crops: e.target.checked }));
+document.querySelectorAll(".grp").forEach(c =>
+  c.addEventListener("change", () => setSettings({ groups: { [c.dataset.g]: c.checked } })));
+$("#pause").addEventListener("click", () => setSettings({ paused: !$("#pause").classList.contains("on") }));
+$("#snap").addEventListener("click", async () => {
+  const r = await post("/api/snapshot");
+  toast(r.saved.length ? "Збережено в " + r.folder : "Немає кадрів для збереження");
+});
+document.querySelectorAll(".view img").forEach(img =>
+  img.addEventListener("click", () => img.closest(".view").classList.toggle("zoom")));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") document.querySelectorAll(".view.zoom").forEach(v => v.classList.remove("zoom"));
+});
+
+function renderSource(name, st) {
+  const v = $("#v-" + name);
+  v.style.display = st.configured ? "" : "none";
+  const dot = v.querySelector(".dot");
+  dot.className = "dot " + (st.status === "працює" ? "ok" : (st.configured ? "bad" : ""));
+  const size = st.size ? ` · ${st.size[0]}×${st.size[1]}` : "";
+  v.querySelector(".stats").textContent = st.status === "працює"
+    ? `камера ${st.cap_fps} FPS · YOLO ${st.inf_fps} FPS (${st.inf_ms} мс)${size}` : st.status;
+  v.querySelector(".counts").innerHTML = Object.entries(st.counts).map(([g, n]) =>
+    `<span style="color:var(--${g})">${NAMES[g]}: ${n}</span>`).join("");
+}
+
+function addEvents(evs) {
+  if (!evs.length) return;
+  const gal = $("#gallery");
+  const empty = gal.querySelector(".empty"); if (empty) empty.remove();
+  for (const e of evs) {
+    const c = document.createElement("div");
+    c.className = "card g-" + e.group;
+    c.innerHTML = `<img src="${e.url}" alt="">
+      <div class="meta"><b>${NAMES[e.group]}</b> ${(e.conf * 100).toFixed(0)}% · ${SRC[e.source]}<br>${e.time}</div>`;
+    c.querySelector("img").addEventListener("click", () => window.open(e.url, "_blank"));
+    gal.prepend(c);
+    lastEvent = Math.max(lastEvent, e.id); total++;
+  }
+  while (gal.children.length > 60) gal.lastChild.remove();
+  $("#evcount").textContent = total;
+}
+
+async function poll() {
+  try {
+    const s = await (await fetch("/api/state?after=" + lastEvent)).json();
+    let shown = 0;
+    for (const [n, st] of Object.entries(s.sources)) { renderSource(n, st); if (st.configured) shown++; }
+    $("#views").classList.toggle("single", shown < 2);
+    if (!settingsLoaded) { applySettings(s.settings); settingsLoaded = true; }
+    addEvents(s.events);
+  } catch (e) { /* сервер зупинено */ }
+  setTimeout(poll, 500);
+}
+poll();
+</script>
+</body>
+</html>
