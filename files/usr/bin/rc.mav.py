@@ -87,7 +87,12 @@ def main():
             last_request = now
 
         m = mav.recv_match(type=["RC_CHANNELS", "HEARTBEAT"], blocking=True, timeout=1.0)
-        if m is None or m.get_type() != "RC_CHANNELS":
+        if m is None:
+            continue
+        if m.get_type() == "HEARTBEAT":
+            # запам'ятати польотник (не наземну станцію), щоб просити в нього RC_CHANNELS
+            if not mav.target_system and m.autopilot != mavutil.mavlink.MAV_AUTOPILOT_INVALID:
+                mav.target_system, mav.target_component = m.get_srcSystem(), m.get_srcComponent()
             continue
 
         def ch(n):
