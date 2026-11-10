@@ -281,3 +281,42 @@ sudo systemctl daemon-reload && sudo systemctl enable --now camcontrol && system
 ch6 — контраст. Якщо у користувача інша розкладка — зміни константи `CH_*` на початку скрипта.
 Порт 14550 відкритий на всі інтерфейси (0.0.0.0) — це як на Zero 2; повідом користувача,
 якщо Pi у спільній мережі.
+
+## 12. Емуляція пульта (перевірка керування без польотника)
+
+У `tools/` є два скрипти: `rc_emulator.py` удає польотник (шле MAVLink HEARTBEAT + RC_CHANNELS),
+`fake_camera.py` удає програму камери (друкує команди, що приходять на UDP 1111).
+Ланцюжок `rc_emulator → rc.mav.py → fake_camera` перевірено на комп'ютері розробника (не на Pi).
+Потрібен `pymavlink` (крок 11).
+
+**А. Тільки логіка, без камери й роутера** — три термінали (або `tmux`):
+```bash
+sudo systemctl stop camera camcontrol mavlink-router 2>/dev/null; python3 tools/fake_camera.py
+```
+```bash
+python3 files/usr/bin/rc.mav.py
+```
+```bash
+python3 tools/rc_emulator.py --demo
+```
+Очікувано у `fake_camera`: спершу `img 58 80 2`, далі `img ...` зі зміною яскравості
+(48 → 108 → 78), контрасту (60 → 135), AGC (0 → 3 → 5) і двічі `shut`.
+
+**Б. Зі справжньою камерою** (видно реальну зміну картинки): `camera` запущена, `fake_camera` НЕ запускати.
+```bash
+sudo systemctl start camera; sudo systemctl stop camcontrol mavlink-router 2>/dev/null; python3 files/usr/bin/rc.mav.py &
+```
+```bash
+python3 tools/rc_emulator.py
+```
+Далі вводь команди вручну: `bright 1900`, `contr 1200`, `agc 1550`, `shut`, `9 1000`, `show`, `q`.
+У журналі камери (`journalctl -u camera -f`) мають з'являтись `got IMG command` / `got SHUT command`,
+а зображення — змінюватись; при `shut` чути клацання шатера.
+
+**В. Через працюючий mavlink-router** (перевіряє і роутер): сервіси `mavlink-router` та `camcontrol`
+запущені, польотник від'єднаний або вимкнений.
+```bash
+python3 tools/rc_emulator.py --router
+```
+
+Після тестів поверни сервіси: `sudo systemctl start mavlink-router camcontrol`.
