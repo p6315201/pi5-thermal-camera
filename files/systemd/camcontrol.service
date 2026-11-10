@@ -1,0 +1,14 @@
+[Unit]
+Description=IR camera remote control
+DefaultDependencies=false
+After=camera.service mavlink-router.service
+
+[Service]
+Type=simple
+ExecStart=/bin/rc.py
+Restart=always
+#StandardOutput=syslog
+#StandardError=syslog
+
+[Install]
+WantedBy=local-fs.target
