@@ -203,3 +203,22 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mspcontrol
 Повідом: версію ОС, адресу I2C з `i2cdetect`, чи стартує `camera` без помилок,
 чи `tiny1c_spi.py` зберіг нормальний кадр, чи є відео на дисплеї/композиті, статус сервісів.
 Не роби незворотних змін (перепайка, перепрошивка модуля, видалення файлів) без підтвердження.
+
+## 10. Додатково знайдено в образі Zero 2 (другий прохід)
+
+- `files/usr/bin/gsttest` — тестова програма GStreamer з образу (`videotestsrc ! videoconvert !
+  video/x-raw,format=I420 ! kmssink`). Запусти її ПЕРЕД `camera`, щоб перевірити, що `kmssink`
+  взагалі малює на дисплей Pi 5: `sudo install -m 755 files/usr/bin/gsttest /usr/bin/ && sudo gsttest`.
+  Є тестова картинка — вивід працює; немає — проблема у виводі, а не в камері.
+- `files/libs_version.txt` — версії SDK: libirsample 1.2.0, libirprocess 0.8.2, libirparse 0.3.1,
+  libirtemp 0.13.4 alpha, **libiruvc asic2121w 1.10.6 alpha**. `camera` сама перезаписує цей файл
+  як `../libs_version.txt` відносно робочого каталогу.
+- `/etc/modules` на Zero 2 містив `i2c-dev` — переконайся, що модуль завантажений (`lsmod | grep i2c_dev`).
+- Вихідний код програми камери (`/root/spi_i2c.03/` — include, libs, build/sample; архів
+  `spi_i2c.03c.tar.gz`) і MAVLink-версія пульта (`/root/soft/rc.py`, `rc_test.py`) з образу ВИДАЛЕНІ.
+  `/usr/bin/camera` — це зібраний `build/sample`. Перезібрати або змінити програму без вихідників
+  неможливо; якщо знадобиться — попроси користувача дістати архів `spi_i2c.03c.tar.gz`.
+- Образ Zero 2 НЕ завантажиться на Pi 5: ядро для Pi 5 (`linux-image-rpi-2712`) з нього видалене.
+  Тому потрібна чиста ОС на Pi 5, а не клон цієї SD-карти.
+- На Zero 2 система була урізана для швидкого старту (вимкнені NetworkManager-wait-online,
+  getty@tty1, timesyncd, bluetooth, ModemManager, swap). Це оптимізація, для роботи камери не потрібна.
