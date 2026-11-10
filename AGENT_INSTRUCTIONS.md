@@ -222,3 +222,62 @@ sudo systemctl daemon-reload && sudo systemctl enable --now mspcontrol
   Тому потрібна чиста ОС на Pi 5, а не клон цієї SD-карти.
 - На Zero 2 система була урізана для швидкого старту (вимкнені NetworkManager-wait-online,
   getty@tty1, timesyncd, bluetooth, ModemManager, swap). Це оптимізація, для роботи камери не потрібна.
+
+## 11. MAVLink-варіант керування (mavlink-router) — альтернатива кроку 8
+
+На Zero 2 спершу було керування через MAVLink (`mavlink-router` + `/bin/rc.py`, сервіс
+`camcontrol`), потім його вимкнули на користь MSP (`mspcontrol`, крок 8).
+**Обирай ОДНЕ з двох**: обидва займають той самий UART до польотника. MAVLink — якщо на
+польотнику ArduPilot/PX4 або порт налаштований на MAVLink; MSP — якщо Betaflight/INAV з MSP.
+Спитай користувача, яка прошивка польотника, якщо невідомо.
+
+Файли з образу: `files/usr/bin/mavlink-routerd` (зібраний на Zero 2 з
+github.com/mavlink-router/mavlink-router, aarch64, залежить лише від libc/libstdc++),
+`files/mavlink/main.conf`, `files/systemd/mavlink-router.service`, `files/systemd/camcontrol.service`.
+`files/usr/bin/rc.mav.py` — **відтворений** скрипт (оригінальний `rc.py` видалено з образу):
+логіка каналів з `rc.msp.py`, транспорт MAVLink. На залізі не перевірявся — тестуй уважно.
+
+Оригінальний конфіг роутера: UART `/dev/serial0` 115200 → UDP-сервери `0.0.0.0:14550`
+(наземна станція, QGC) і `0.0.0.0:14551` (скрипт).
+
+```bash
+sudo systemctl disable --now mspcontrol 2>/dev/null
+```
+```bash
+sudo install -m 755 files/usr/bin/mavlink-routerd /usr/bin/mavlink-routerd && mavlink-routerd --version
+```
+Якщо бінарник не стартує — збери з вихідників, як на Zero 2:
+`sudo apt install -y git meson ninja-build pkg-config gcc g++ && git clone https://github.com/mavlink-router/mavlink-router.git && cd mavlink-router && git submodule update --init --recursive && meson setup build . && ninja -C build && sudo ninja -C build install`
+```bash
+sudo mkdir -p /etc/mavlink-router && sudo install -m 644 files/mavlink/main.conf /etc/mavlink-router/main.conf
+```
+**Pi 5:** UART на GPIO14/15 — це `/dev/ttyAMA0`, а не `/dev/serial0`:
+```bash
+sudo sed -i 's#/dev/serial0#/dev/ttyAMA0#' /etc/mavlink-router/main.conf
+```
+```bash
+sudo install -m 644 files/systemd/mavlink-router.service /usr/lib/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now mavlink-router && systemctl status mavlink-router --no-pager
+```
+Перевірка, що MAVLink іде з польотника (має друкувати HEARTBEAT):
+```bash
+sudo pip3 install --break-system-packages pymavlink
+```
+```bash
+python3 -c "from pymavlink import mavutil; m=mavutil.mavlink_connection('udpout:127.0.0.1:14551'); m.mav.heartbeat_send(18,8,0,0,0); print(m.recv_match(type='HEARTBEAT',blocking=True,timeout=10))"
+```
+`None` = даних немає: перевір проводку TX/RX, швидкість 115200 і що порт польотника в режимі MAVLink.
+
+Скрипт керування камерою:
+```bash
+sudo install -m 755 files/usr/bin/rc.mav.py /usr/bin/rc.mav.py
+```
+```bash
+sudo install -m 644 files/systemd/camcontrol.service /usr/lib/systemd/system/ && sudo sed -i 's#ExecStart=/bin/rc.py#ExecStart=/usr/bin/rc.mav.py#' /usr/lib/systemd/system/camcontrol.service
+```
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now camcontrol && systemctl status camcontrol --no-pager
+```
+Канали пульта в `rc.mav.py` (як у `rc.msp.py`): ch7 — шатер, ch9 — яскравість, ch13 — AGC,
+ch6 — контраст. Якщо у користувача інша розкладка — зміни константи `CH_*` на початку скрипта.
+Порт 14550 відкритий на всі інтерфейси (0.0.0.0) — це як на Zero 2; повідом користувача,
+якщо Pi у спільній мережі.
