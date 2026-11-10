@@ -1,0 +1,5 @@
+libirsample 1.2.0
+libirprocess 0.8.2
+libirparse 0.3.1
+libirtemp 0.13.4 alpha
+libiruvc asic2121w 1.10.6 alpha
